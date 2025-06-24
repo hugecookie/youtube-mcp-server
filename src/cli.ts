@@ -1,37 +1,55 @@
 #!/usr/bin/env node
 
-import { startMcpServer } from './server';
-import { VideoService } from './services/video';
+import dotenv from 'dotenv';
+dotenv.config();
 
-const args = process.argv.slice(2);
+import { VideoService } from './services/video';
 
 if (!process.env.YOUTUBE_API_KEY) {
     console.error('Error: YOUTUBE_API_KEY environment variable is required.');
-    console.error('Please set it before running this server.');
     process.exit(1);
 }
 
+const args = process.argv.slice(2);
+const service = new VideoService();
+
 if (args.length > 0) {
-    // 검색 CLI 모드
+    // ✅ 인자 기반 CLI 검색
     const query = args.join(' ');
-    const service = new VideoService();
-    service.searchVideos({ query, maxResults: 3 }) // 최대 갯수는 임의로 설정하기, 입력 값으로 수정할수도 있지만 챗봇 특성상 갯수를 임의로 받으면 요청에 따라 부하가 너무 클 지도 모름
+    service.searchVideos({ query, maxResults: 3 })
         .then(results => {
-            console.log(JSON.stringify(results, null, 2)); // 출력 형식은 JSON 유지
+            console.log(JSON.stringify(results, null, 2));
             process.exit(0);
         })
         .catch(err => {
             console.error('Search failed:', err);
             process.exit(1);
         });
+
 } else {
-    // 서버 모드 (Spring AI MCP 연동 시 stdout으로 메시지 출력 금지)
-    startMcpServer()
-        .then(() => {
-            // MCP 서버 시작 성공 로그는 출력하지 않음
-        })
-        .catch(error => {
-            console.error('Failed to start YouTube MCP Server:', error);
+    // ✅ stdin 입력으로 검색
+    let input = '';
+    process.stdin.on('data', chunk => {
+        input += chunk;
+    });
+
+    process.stdin.on('end', () => {
+        try {
+            const request = JSON.parse(input);
+            const query = request.text || '';
+            service.searchVideos({ query, maxResults: 3 })
+                .then(results => {
+                    process.stdout.write(JSON.stringify(results, null, 2) + "\n");
+                })
+                .catch(err => {
+                    console.error('Search failed:', err);
+                    process.exit(1);
+                });
+        } catch (e) {
+            console.error('Invalid JSON input:', e);
             process.exit(1);
-        });
+        }
+    });
+
+    process.stdin.resume();
 }

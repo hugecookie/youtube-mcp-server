@@ -263,3 +263,8 @@ export async function startMcpServer() {
     
     return server;
 }
+
+// 서버 시작 메서드
+startMcpServer().catch((err) => {
+    console.error("❌ MCP 서버 실행 중 에러:", err);
+});
